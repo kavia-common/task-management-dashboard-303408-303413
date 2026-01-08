@@ -129,6 +129,19 @@ GRANT CREATE ON SCHEMA public TO ${DB_USER};
 \dn+ public
 EOF
 
+# If schema is missing but we have a backup SQL, restore it.
+# This keeps local dev/E2E flows working out-of-the-box.
+if [ -f "database_backup.sql" ]; then
+    echo "Checking for existing schema..."
+    if ! PGPASSWORD="${DB_PASSWORD}" ${PG_BIN}/psql -h localhost -p ${DB_PORT} -U ${DB_USER} -d ${DB_NAME} -tAc "SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='tasks' LIMIT 1;" | grep -q 1; then
+        echo "No schema detected; restoring from database_backup.sql..."
+        PGPASSWORD="${DB_PASSWORD}" ${PG_BIN}/psql -h localhost -p ${DB_PORT} -U ${DB_USER} -d postgres < database_backup.sql 2>/dev/null || true
+        echo "Restore complete."
+    else
+        echo "Schema detected; skipping restore."
+    fi
+fi
+
 # Save connection command to a file
 echo "psql postgresql://${DB_USER}:${DB_PASSWORD}@localhost:${DB_PORT}/${DB_NAME}" > db_connection.txt
 echo "Connection string saved to db_connection.txt"
